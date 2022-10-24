@@ -11,6 +11,8 @@ import java.util.Base64;
 @TeleOp
 public class Main extends OpMode {
 
+    double previousTargetTick = 0;
+
     int servoInitialPosition;
     int motorInitialPosition;
 
@@ -26,10 +28,10 @@ public class Main extends OpMode {
     DcMotor backLeftMotor;
     DcMotor backRightMotor;
 
-    Servo frontLeftServo;
-    Servo frontRightServo;
-    Servo backLeftServo;
-    Servo backRightServo;
+    CRServo frontLeftServo;
+    CRServo frontRightServo;
+    CRServo backLeftServo;
+    CRServo backRightServo;
 
     // Front Left Servo Limits
     double fl_lowerLimit = 0;
@@ -67,10 +69,10 @@ public class Main extends OpMode {
         backRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // Servos
-        frontLeftServo = hardwareMap.get(Servo.class, "front_left");
-        frontRightServo = hardwareMap.get(Servo.class, "front_right");
-        backLeftServo = hardwareMap.get(Servo.class, "back_left");
-        backRightServo = hardwareMap.get(Servo.class, "back_right");
+        frontLeftServo = hardwareMap.get(CRServo.class, "front_left");
+        frontRightServo = hardwareMap.get(CRServo.class, "front_right");
+        backLeftServo = hardwareMap.get(CRServo.class, "back_left");
+        backRightServo = hardwareMap.get(CRServo.class, "back_right");
 
         // Servo Encoders
         frontLeftServoEncoder = hardwareMap.get(DcMotor.class, "front_left_encoder");
@@ -168,19 +170,33 @@ public class Main extends OpMode {
 
     @Override
     public void loop() {
-        if (testWheelDirections) {
-            wheelDirectionTest();
-        }
+        double alpha;
 
         x = gamepad1.right_stick_x;
         y = -gamepad1.right_stick_y;
 
-        double speed = Math.sqrt(x*x + y*y) / Math.sqrt(2);
+        // only calculate tan value when is not 0
+        if (x == 0) {
+            alpha = 0;
+        }
+        else {
+            alpha = Math.atan2(y, x);
+        }
 
-        frontLeftServo.setPosition(anglePositionVal(fl_lowerLimit, fl_middle, fl_upperLimit, true));
-        frontRightServo.setPosition(anglePositionVal(fr_lowerLimit, fr_middle, fr_upperLimit, true));
-        backLeftServo.setPosition(anglePositionVal(bl_lowerLimit, bl_middle, bl_upperLimit, false));
-        backRightServo.setPosition(anglePositionVal(br_lowerLimit, br_middle, br_upperLimit, false));
+        double targetTick = 2 * alpha * 4096;
+
+        if ((frontLeftServoEncoder.getCurrentPosition() + frontRightServoEncoder.getCurrentPosition() + backLeftServoEncoder.getCurrentPosition()) / 3 < targetTick - 10) {
+            frontLeftServo.setPower(0.25);
+            frontRightServo.setPower(0.25);
+            backLeftServo.setPower(0.25);
+        }
+        else if ((frontLeftServoEncoder.getCurrentPosition() + frontRightServoEncoder.getCurrentPosition() + backLeftServoEncoder.getCurrentPosition()) / 3 > targetTick + 10) {
+            frontLeftServo.setPower(-0.25);
+            frontRightServo.setPower(-0.25);
+            backLeftServo.setPower(-0.25);
+        }
+
+        previousTargetTick = targetTick;
 
 
 //        frontLeftMotor.setPower(calculateSpeedVals(x, y, true));
@@ -189,8 +205,9 @@ public class Main extends OpMode {
 //        backRightMotor.setPower(-calculateSpeedVals(x, y, false));
 
         telemetry.addLine("Please work..." + x);
-        telemetry.addLine("Servo encoder tick difference..." + (backLeftServoEncoder.getCurrentPosition() - servoInitialPosition));
-        telemetry.addLine("Wheel encoder tick difference..." + (backLeftMotor.getCurrentPosition() - motorInitialPosition));
+        telemetry.addLine("Target tick: " + targetTick);
+        telemetry.addLine("Current tick: " + (frontLeftServoEncoder.getCurrentPosition() + frontRightServoEncoder.getCurrentPosition() + backLeftServoEncoder.getCurrentPosition()) / 3);
+        telemetry.addLine("Alpha (degrees): " + alpha / 180);
     }
 
 
