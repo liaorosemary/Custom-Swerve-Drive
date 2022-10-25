@@ -20,6 +20,7 @@ public class SwerveDrive extends OpMode {
     // Controller inputs
     double controllerAngle;
     double x, y;
+    double rotationSpeedDirection;      // Rotation speed and direction from left stick
 
     // Wheel motors
     DcMotor frontLeftMotor;
@@ -39,6 +40,8 @@ public class SwerveDrive extends OpMode {
     CRServo[] servos = new CRServo[4];
     DcMotor[] servoEncoders = new DcMotor[4];
     int [] directions = {1, 1, 1, 1};
+    double [] targetAngles = {0, 0, 0, 0};
+    double [] speeds = {0, 0, 0, 0};
 
     @Override
     public void init() {
@@ -68,23 +71,48 @@ public class SwerveDrive extends OpMode {
         x = gamepad1.right_stick_x;
         y = -gamepad1.right_stick_y;    // invert, so that up is +, down is -
         controllerAngle = Math.atan2(y, x); // input angle
+        rotationSpeedDirection = gamepad1.left_stick_x;
 
         double speed = 0.5 * Math.sqrt(x*x + y*y);  // ***Will change to use normalization
 
         controllerAngle = getAngleInFullRotation(controllerAngle);  // Convert controller angle to new range
 
-        wheelToTargetAngle(controllerAngle, 0);
-        wheelToTargetAngle(controllerAngle, 1);
-        wheelToTargetAngle(controllerAngle, 2);
-        wheelToTargetAngle(controllerAngle, 3);
+        calculateTargetAngleAndSpeed(0, Math.PI / 4);
+        calculateTargetAngleAndSpeed(1, 3 * Math.PI / 2 + Math.PI / 4);
+        calculateTargetAngleAndSpeed(2, Math.PI / 4 + Math.PI / 2);
+        calculateTargetAngleAndSpeed(3, Math.PI / 4 + Math.PI);
 
-        frontLeftMotor.setPower(speed * directions[0]);
-        frontRightMotor.setPower(speed * directions[1]);
-        backLeftMotor.setPower(speed * directions[2]);
-        backRightMotor.setPower(speed * directions[3]);
+        wheelToTargetAngle(0);
+        wheelToTargetAngle(1);
+        wheelToTargetAngle(2);
+        wheelToTargetAngle(3);
+
+        frontLeftMotor.setPower(speeds[0] / 2 * directions[0]);
+        frontRightMotor.setPower(speeds[1] / 2 * directions[1]);
+        backLeftMotor.setPower(speeds[2] / 2 * directions[2]);
+        backRightMotor.setPower(speeds[3] / 2 * directions[3]);
     }
 
-    public void wheelToTargetAngle(double targetAngle, int idx){
+    public void calculateTargetAngleAndSpeed(int idx, double rotationAngle) {
+        //controllerAngle
+        //rotationSpeedDirection
+
+        double rotationX = Math.cos(rotationAngle) * rotationSpeedDirection;
+        double rotationY = Math.sin(rotationAngle) * rotationSpeedDirection;
+
+        double finalX = rotationX + x;
+        double finalY = rotationY + y;
+
+        targetAngles[idx] = Math.atan2(finalY, finalX);
+        speeds[idx] = Math.sqrt(finalX * finalX + finalY * finalY);
+
+        telemetry.addLine("speed  " + idx + " : " + speeds[idx] + " or: " + speeds[idx]/2);
+    }
+
+    public void wheelToTargetAngle(int idx){
+
+        double targetAngle = targetAngles[idx];
+
         double currentAngle = getCurrentAngle(idx);
 
         int direction = 1; // clockwise, (direction of wheel rotation)
@@ -111,9 +139,11 @@ public class SwerveDrive extends OpMode {
             directions[idx] *= -1;   // Switch direction of wheel turn, (and change current angle to match it, which will be reflected in getCurrentAngle(), when called again)
         }
 
+        currentAngle = getCurrentAngle(idx);
+
         servos[idx].setPower(direction * (chosenAngleDiff)/(Math.PI / 2));
 
-        telemetry.addLine("target: " + Math.toDegrees(targetAngle) + "; current: " + Math.toDegrees(currentAngle) + "; real current angle: " + servoEncoders[idx].getCurrentPosition());
+        telemetry.addLine("target: " + Math.toDegrees(targetAngle) + "; direction: " + directions[idx] + "; current: " + Math.toDegrees(currentAngle));
     }
 
     double getCurrentAngle(int enc_idx) {
